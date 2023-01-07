@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>OpenB3D Flight Simulator</title><meta name="apple-mobile-web-app-status-bar" content="#aa7700"><meta name="theme-color" content="black"><link rel="manifest" href="./manifest.json">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="joy.js"></script>
+  </head>
+  <body style="margin:0px 0px 0px 0px">
+    <canvas id="glCanvas"></canvas>
+    <div id="joyDiv" style="width:150px;height:150px;margin:50px;position:fixed;bottom:30px;right:30px;"></div>
+    <div id="engDiv" style="width:150px;height:150px;margin:50px;position:fixed;bottom:30px;left:30px;"></div>
+    <script src="OpenB3D.js"></script>
+    <script src="OpenB3DJS.js"></script>
+    <script>
+      Module.onRuntimeInitialized = _ => {
+	const canvas = document.querySelector("#glCanvas");
+	canvas.width  = window.innerWidth;
+	canvas.height = window.innerHeight;
+	GLctx = canvas.getContext("webgl");
+
+	Graphics3D(GLctx.canvas.width,GLctx.canvas.height,0,0,0);
+	camera=CreateCamera(0);
+	CameraClsColor(camera,0,192,255);
+	CameraFogColor(camera,0,192,255);
+	CameraFogRange(camera,2500,3000);
+	CameraRange(camera,1,3000);
+	CameraFogMode(camera,1);
+
+	light=CreateLight(1,0);
+	RotateEntity (light,-45,45,0,0);
+	AmbientLight (32,32,32);
+
+	AsyncLoadTerrain( "hmap_1024.bmp",0,(terr)=>{ 
+		ScaleEntity (terr,20,80,20,0);
+		EntityFX (terr,1);
+		AsyncLoadTexture( "coolgrass2.bmp",1,(tex)=>{
+			ScaleTexture(tex,10,10);
+			EntityTexture (terr,tex,0,0);
+		});
+		AsyncLoadTexture( "lmap_256.bmp",1,(tex)=>{
+			ScaleTexture (tex,1024,1024);
+			EntityTexture (terr,tex,0,1);
+		});
+		EntityType(terr,1);
+	});
+	var craft=0;
+
+	AsyncLoadResource('FIGHTER.JPG', _=>{
+		AsyncLoadMesh("fighter.3ds",0,(mesh)=>{
+			craft=mesh;
+			PositionEntity (craft,1000,600,-10000,0);
+			ScaleEntity (craft,.3,.3,.3);
+			RotateMesh (craft,90,0,0);
+			ScaleMesh (craft,.1,.1,.1);
+			EntityRadius (craft,3,0);
+			EntityType (craft,2);
+			UPDATE()
+
+			window.addEventListener("orientationchange",ResizeScreen,false)
+			window.addEventListener("resize",ResizeScreen,false)
+		});
+	});
+
+	AsyncLoadTexture( "cloud_2.bmp",3,(tex)=>{ 
+		ScaleTexture (tex,.01,.01);
+		p=CreatePlane();
+		EntityTexture (p,tex);
+		EntityFX (p,1)
+		EntityAlpha (p,.55);
+		PositionEntity (p,0,450,0,0);
+		p=CopyEntity( p );
+		RotateEntity (p,0,0,180,0);
+	});
+
+	AsyncLoadTexture( "water-2_mip.bmp",3,(tex)=>{ 
+		ScaleTexture (tex,.0010,.0010);
+		p=CreatePlane()
+		EntityTexture (p,tex);
+		EntityBlend (p,1);
+		EntityAlpha (p,.75);
+		PositionEntity (p,0,10,0,0);
+	});
+
+	Collisions(2,1,2,2);
+
+	speed=1;
+	engine=1;
+	acceleration=.015;
+
+	joy = new JoyStick('joyDiv');
+	joyEng = new JoyStick('engDiv', {"autoReturnToCenter": false });
+
+	function UPDATE(){
+		TurnEntity (craft,-speed*joy.GetY()/100,0,0);
+		TurnEntity (craft,0,0,-speed*joy.GetX()/100);
+
+		engine=1+joyEng.GetY()/100;
+
+		if (engine<0) engine=0;
+		if (speed<engine) speed+=acceleration;
+
+		vec=Math.abs(Math.cos(EntityRoll(craft,0)/57));
+		//ves=Math.sin(EntityRoll(craft)/57);
+
+		if (Math.abs(EntityRoll(craft,0))<90){
+			TurnEntity (craft,-Math.sign(90-EntityPitch(craft,0))*vec,0,0);
+		}else{
+			TurnEntity (craft,Math.sign(90-EntityPitch(craft,0))*vec,0,0);
+		}
+
+		speed=speed-Math.sin(EntityPitch(craft,0)/57)/100;
+		speed=speed/1.01;
+		if (speed<0) speed=0;
+
+		TurnEntity (craft,speed,0,0);
+		MoveEntity (craft,0,0,speed);
+
+		//Chasing camera
+		PointEntity (camera,craft,0);
+		dist=EntityDistance (camera,craft);
+		if (dist>8) MoveEntity(camera,0,0,0.01*dist);
+
+		UpdateWorld();
+		RenderWorld();
+		setTimeout (UPDATE,33);
+	}
+
+	function ResizeScreen(){
+		const canvas = document.querySelector("#glCanvas");
+		canvas.width  = window.innerWidth;
+		canvas.height = window.innerHeight;
+		GLctx = canvas.getContext("webgl");
+
+		CameraViewport(camera, 0, 0, GLctx.canvas.width,GLctx.canvas.height);
+	}
+
+	
+      };
+
+window.onload = () => {
+  'use strict';
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker
+             .register('./serviceworker.js');
+  }
+}
+
+    </script>
+
+  </body>
+</html>
